@@ -1,7 +1,7 @@
 ## Compute adjacency matrix of spatial nearest neighbors using Delauney triangulation
 ## coords is an Nx2 matrix of coordinates 
 #' @export 
-spatialNN <- function(coords, dist_thresh=Inf, do_soi=TRUE, weighted=FALSE) {
+spatialNN <- function(coords, dist_thresh=Inf, do_soi=TRUE) {
     ## Initial sf object 
     coords_sf <- tibble(geom = map2(coords[, 1], coords[, 2], function(.r, .c) st_point(c(.r, .c)))) %>% st_as_sf()
                                     
@@ -28,9 +28,7 @@ spatialNN <- function(coords, dist_thresh=Inf, do_soi=TRUE, weighted=FALSE) {
     ## (Optionally) prune graph on max distance
     mat@x[mat@x > dist_thresh] <- 0
     mat <- Matrix::drop0(mat)
-    if (!weighted) {
-        mat@x <- rep(1, length(mat@x))            
-    }
+    mat@x <- rep(1, length(mat@x)) ## return unweighted matrix 
     rownames(mat) <- colnames(mat) <- rownames(coords)
     return(mat)
 }
