@@ -1,0 +1,12 @@
+Package: gagarin
+Title: Functions for spatial analysis 
+Version: 0.0.0.9000
+Authors@R:
+    person("Ilya", "Korsunsky", , "ilya.korsunsky@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-4848-3948"))
+Description: Currently, miscellaneous collection of useful functions for handling spatial genomics data.
+License: use_gpl3_license()
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
