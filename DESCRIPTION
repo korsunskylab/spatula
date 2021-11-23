@@ -7,7 +7,6 @@ Authors@R:
 Description: Currently, miscellaneous collection of useful functions for handling spatial genomics data.
 Imports: 
     sf,
-    spdep,
     purrr,
     dplyr
 License: use_gpl3_license()
