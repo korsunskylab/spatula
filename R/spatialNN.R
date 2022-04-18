@@ -17,7 +17,8 @@ getSpatialNeighbors <- function(coords, dist_thresh_quantile=.99) {
     adjmat <- Matrix::sparseMatrix(
         i = pairs[, 1], 
         j = pairs[, 2],
-        x = rep(1, nrow(pairs))
+        x = rep(1, nrow(pairs)),
+        dims = c(nrow(coords), nrow(coords))
     ) 
 
     ## accounts for duplicate pairs - faster than `unique(pairs)`
