@@ -7,7 +7,6 @@ IntegerMatrix triplets_to_pairs(const IntegerMatrix& triplets) {
     unsigned N = triplets.nrow(); 
     IntegerMatrix res(6*N, 2);
     for (int i = 0; i < N; i++) {
-        cout << "i" << endl;
         res(6*i, 0) = triplets(i, 0);
         res(6*i, 1) = triplets(i, 1);
         
