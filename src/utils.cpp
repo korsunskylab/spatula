@@ -1,6 +1,11 @@
+#include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include <vector>
 using namespace std; 
 using namespace Rcpp; 
+
+// [[Rcpp::depends(RcppArmadillo)]]
+
 
 // [[Rcpp::export]]
 IntegerMatrix triplets_to_pairs(const IntegerMatrix& triplets) {
@@ -44,4 +49,54 @@ IntegerMatrix dgCMat_to_pairs_cpp(const IntegerVector& ivec, const IntegerVector
     }
     return pairs;     
 }
+
+
+
+
+// [[Rcpp::export]]
+std::vector<arma::umat> get_idx_cpp(const arma::umat& X, bool only_boundary=true) {
+    size_t ncells = X.max(); 
+    std::vector<arma::umat> res(ncells);     
+    arma::umat X_bound = arma::zeros<arma::umat>(arma::size(X));  
+    
+    // Set all internal pixels to 0 
+    if (only_boundary) {
+        for (int x = 0; x < X.n_rows; x++) {
+            for (int y = 0; y < X.n_cols; y++) {
+                // Skip background pixel
+                if (X(x, y) == 0) {
+                    // do nothing 
+                } else if (x == 0 || y == 0 || x == X.n_rows-1 || y == X.n_cols-1) {
+                    // Keep image boundary pixels as is 
+                    X_bound(x, y) = X(x, y); 
+                } else if (
+                    // Zero out internal pixels
+                    X(x-1, y-1) == X(x, y) &&
+                    X(x-1, y) == X(x, y) &&
+                    X(x-1, y+1) == X(x, y) &&
+                    X(x, y-1) == X(x, y) &&
+                    X(x, y+1) == X(x, y) &&
+                    X(x+1, y-1) == X(x, y) &&
+                    X(x+1, y) == X(x, y) &&
+                    X(x+1, y+1) == X(x, y) 
+                ) {
+                    // do nothing 
+                } else {
+                    X_bound(x, y) = X(x, y); 
+                }
+            }
+        }
+        for (int i = 1; i <= ncells; i++) {
+            res[i-1] = ind2sub(size(X), find(X_bound == i)) + 1; 
+        }        
+    } else {
+        for (int i = 1; i <= ncells; i++) {
+            res[i-1] = ind2sub(size(X), find(X == i)) + 1; 
+        }
+        
+    }
+    
+    return res;
+}
+
 
