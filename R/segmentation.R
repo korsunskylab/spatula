@@ -421,7 +421,9 @@ get_overlapping_cells <- function(sf1, sf2, grid1, grid2) {
         sf1$geometry_cell[ids_1], 
         sf2$geometry_cell[ids_2], 
         sparse = TRUE
-    )    
+    )
+    ## Remove empty overlaps 
+    overlaps <- overlaps[map_int(overlaps, length) > 0]    
     if (length(overlaps) == 0) {
         return(list())
     }
