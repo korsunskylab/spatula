@@ -308,9 +308,20 @@ register_labels <- function(cells1, cells2, boundary_size) {
         .options = furrr_options(seed=TRUE)   
     )
     
+    ## TODO: filter for overlap above. We shouldn't check for empty pairs twice! 
+    pairs <- subset(pairs, pct_overlap > .1) ## 20% overlap 
+    if (nrow(pairs) == 0) {
+        new_cells <- list(
+            cells = c(cells1$cells, cells2$cells),
+            boundary = st_union(cells1$boundary, cells2$boundary)
+        )
+        return(new_cells) 
+    }
+    
+    
+    
     ## Divide the bipartite graph into connected components and deal with each one separately 
     g <- pairs %>% 
-        subset(pct_overlap > .1) %>% ## 20% overlap 
         with(rbind(ID1, ID2)) %>% 
         igraph::graph(directed = FALSE)
     connected_components <- components(g)
