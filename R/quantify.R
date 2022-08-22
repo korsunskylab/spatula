@@ -17,7 +17,9 @@ assign_tx_to_cell <- function(tx, cells, micron_to_pixel_mat, do_grid, boundary=
     rot_mat <- t(as.matrix(micron_to_pixel_mat))
 
     ## NOTE: the rotation matrix assumes that third column is intercept (not z!)
-    tx_coords_transformed <- as.matrix(cbind(tx[, .(global_x, global_y)], 1)) %*% rot_mat
+    
+    tx_coords_transformed <- as.matrix(cbind(dplyr::select(tx, global_x, global_y), 1)) %*% rot_mat
+    # tx_coords_transformed <- as.matrix(cbind(tx[, .(global_x, global_y)], 1)) %*% rot_mat
     tx_coords_transformed <- data.frame(tx_coords_transformed[, 1:2])
     colnames(tx_coords_transformed) <- c('X1', 'X2')
 
