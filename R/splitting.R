@@ -14,7 +14,8 @@ split_grid <- function(grid_point) {
     ## Make four new grid points 
     res <- map(bboxes_new, function(bbox_test) {
         res <- list(
-            tx = grid_point$tx[between(global_x, bbox_test[1], bbox_test[2]) & between(global_y, bbox_test[3], bbox_test[4])], 
+            tx = dplyr::filter(grid_point$tx, between(global_x, bbox_test[1], bbox_test[2]) & between(global_y, bbox_test[3], bbox_test[4])), 
+            # tx = grid_point$tx[between(global_x, bbox_test[1], bbox_test[2]) & between(global_y, bbox_test[3], bbox_test[4])], 
             bbox = bbox_test,
             bbox_geom = st_rectangle(bbox_test)
         )
