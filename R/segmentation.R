@@ -248,8 +248,8 @@ do_segment <- function(fnames_nucleus, fnames_cytoplasm, img_scale, section_size
     ) 
 
     ## (3) Stitch the segmented images together into one 
-    cells_registered <- Reduce(register_labels, cells_list)
-    
+    boundary_size <- round(0.1 * section_size)
+    cells_registered <- Reduce(function(x, y) register_labels(x, y, boundary_size), cells_list)
     return(list(cells_list=cells_list, cells_registered=cells_registered))    
 }
 
