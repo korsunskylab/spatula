@@ -1,44 +1,52 @@
 ## Functions for quantifying things about cells 
 ## Analogous to regionprops in skimage 
 
-## NOTES: 
-##   (1) assumes column names: global_x, global_y, gene
+## NOTES: assumes that cells and tx_coords are in the same coordinates 
 #' @export 
-assign_tx_to_cell <- function(tx, cells, micron_to_pixel_mat, do_grid, boundary=NULL, verbose=FALSE) {
+assign_tx_to_cell <- function(tx_coords, cells, do_grid, boundary=NULL, verbose=FALSE) {
+    ## TODO: sanity check by intersecting tx and cells bounding boxes 
+    
+    if (ncol(tx_coords) != 2) {
+        stop('tx_coords must have only 2 columns')
+    }    
     if (do_grid == TRUE & !is.null(boundary)) {
         stop('TODO: when boundary not defined, computing bounding box of cells')
     }
 
-    if (verbose) message('Transform microns to pixel coordinates')
+    # if (verbose) message('Transform microns to pixel coordinates')
     ## To directly compare image coordinates to transcript coordinates, need to transform to same space 
     ## Mosaic image transformation matrix provided by Vizgen 
     # rot_mat <- fread('micron_to_mosaic_pixel_transform.csv')
     # rot_mat <- fread('/mnt/efs/fs1/vizgen/vizgen_analyses/HuColonCa_FFPE_PH1_CellBoundary_QC_V8_LH_10-13-2021/region_0/micron_to_mosaic_pixel_transform.csv')
-    rot_mat <- t(as.matrix(micron_to_pixel_mat))
+    # rot_mat <- t(as.matrix(micron_to_pixel_mat))
 
     ## NOTE: the rotation matrix assumes that third column is intercept (not z!)
     
-    tx_coords_transformed <- as.matrix(cbind(dplyr::select(tx, global_x, global_y), 1)) %*% rot_mat
+    # tx_coords_transformed <- as.matrix(cbind(dplyr::select(tx, global_x, global_y), 1)) %*% rot_mat
     # tx_coords_transformed <- as.matrix(cbind(tx[, .(global_x, global_y)], 1)) %*% rot_mat
-    tx_coords_transformed <- data.frame(tx_coords_transformed[, 1:2])
-    colnames(tx_coords_transformed) <- c('X1', 'X2')
+    # tx_coords_transformed <- data.frame(tx_coords_transformed[, 1:2])
+    # colnames(tx_coords_transformed) <- c('X1', 'X2')
 
 
     ## Sanity check: these must be zero. Otherwise, transformation is wrong 
-    stopifnot(all(tx_coords_transformed$X1 >= 0) & all(tx_coords_transformed$X2 >= 0))
+    # stopifnot(all(tx_coords_transformed$X1 >= 0) & all(tx_coords_transformed$X2 >= 0))
 
-    tx <- tx %>% 
-        cbind(data.frame(tx_coords_transformed)) %>% 
-        dplyr::select(x=X1, y=X2, gene) %>% 
-        tibble::rowid_to_column('rowID')
-    head(tx)
-
+    tx <- data.table(
+        x = unlist(tx_coords[, 1]),
+        y = unlist(tx_coords[, 2]),
+        rowID = seq_len(nrow(tx_coords))
+    )
+    # tx <- tx %>% 
+        # cbind(data.frame(tx_coords_transformed)) %>% 
+        # dplyr::select(x=X1, y=X2, gene) %>% 
+        # tibble::rowid_to_column('rowID')
 
     if (verbose) message('Filter cells to be within transcript bbox')
     ## coords: xmin, xmax, ymin, ymax
     bbox_tx = st_rectangle(c(min(tx$x), max(tx$x), min(tx$y), max(tx$y)))
     cells_sf <- st_sf(
-        ID = paste0('Cell', 1:length(cells)),
+        ID = seq_len(length(cells)), ## integer name
+        # ID = paste0('Cell', 1:length(cells)), ## character name 
         cell = cells
     )
     cell_names <- cells_sf %>% st_crop(bbox_tx) %>% with(ID) 
@@ -47,7 +55,13 @@ assign_tx_to_cell <- function(tx, cells, micron_to_pixel_mat, do_grid, boundary=
 
     if (verbose) message('Make grid')
     if (do_grid) {
-        boundary <- st_crop(st_sfc(boundary), bbox_tx)[[1]]
+        # boundary <- st_rectangle(st_bbox(cells)[c('xmin', 'xmax', 'ymin', 'ymax')]) ## bbox around cells
+        # boundary <- st_crop(st_sfc(boundary), bbox_tx)[[1]] ## intersect with transcripts 
+        # boundary <- st_union()
+        boundary <- st_union(
+            st_rectangle(st_bbox(cells_sf)[c('xmin', 'xmax', 'ymin', 'ymax')]),
+            bbox_tx    
+        )
         grid <- st_intersection(st_make_grid(boundary, n = 10), boundary)
     } else {
         ## if no grid, make grid one point 
@@ -61,6 +75,7 @@ assign_tx_to_cell <- function(tx, cells, micron_to_pixel_mat, do_grid, boundary=
         grid <- st_sfc(bbox_cells)
     }
 
+    
     if (verbose) message('Aggregate transcripts within grid sections')
     ## TODO: move processing inside one grid to its own function to not repeat code 
     if (do_grid) {
@@ -133,9 +148,8 @@ assign_tx_to_cell <- function(tx, cells, micron_to_pixel_mat, do_grid, boundary=
 
         ## by convention, set background to cell 0 
         tx$cell[is.na(tx$cell)] <- 0 
-        tx$cell <- c('extracellular', cell_names)[tx$cell + 1]        
+        # tx$cell <- c('extracellular', cell_names)[tx$cell + 1]        
         return(tx)
     }
     
 }
-    
