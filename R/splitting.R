@@ -14,8 +14,8 @@ split_grid <- function(grid_point) {
     ## Make four new grid points 
     res <- map(bboxes_new, function(bbox_test) {
         res <- list(
-            tx = dplyr::filter(grid_point$tx, between(global_x, bbox_test[1], bbox_test[2]) & between(global_y, bbox_test[3], bbox_test[4])), 
-            # tx = grid_point$tx[between(global_x, bbox_test[1], bbox_test[2]) & between(global_y, bbox_test[3], bbox_test[4])], 
+            tx = dplyr::filter(grid_point$tx, between(x, bbox_test[1], bbox_test[2]) & between(y, bbox_test[3], bbox_test[4])), 
+            # tx = grid_point$tx[between(x, bbox_test[1], bbox_test[2]) & between(y, bbox_test[3], bbox_test[4])], 
             bbox = bbox_test,
             bbox_geom = st_rectangle(bbox_test)
         )
@@ -31,7 +31,7 @@ split_tx <- function(tx, max_tx, max_voxels) {
     grid <- list(
         list(
             tx = tx, 
-            bbox = c(min(tx$global_x), max(tx$global_x), min(tx$global_y), max(tx$global_y))
+            bbox = c(min(tx$x), max(tx$x), min(tx$y), max(tx$y))
         )
     )
     grid[[1]]$n <- nrow(grid[[1]]$tx)
