@@ -118,6 +118,6 @@ infer_polygons <- function(tx, parallel=FALSE) {
             return(res)
         }) %>% 
         sf::st_sfc() 
-    returen(cells)
+    return(cells)
 }
                      
