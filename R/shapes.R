@@ -63,7 +63,6 @@ infer_polygon <- function(x, y, max_iter=20, verbose=FALSE) {
             # }, timeout = max_time, onTimeout = "error")        
         })
         if (inherits(tree, 'try-error')) {
-            message('RETURNING!!!!')
             return(sf::st_polygon()) ## return empty polygon  
         }
         if (igraph::is_connected(tree)) {
