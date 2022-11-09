@@ -153,3 +153,25 @@ assign_tx_to_cell <- function(tx_coords, cells, do_grid, boundary=NULL, verbose=
     }
     
 }
+
+
+#' @export 
+tx_to_counts <- function(tx, remove_bg=TRUE) {
+    stopifnot('gene' %in% colnames(tx) & 'cell' %in% colnames(tx))
+    tx <- data.table(tx)
+    if (remove_bg) tx <- tx[cell != 0]
+    counts_tidy <- tx[, .N, by = .(gene, cell)]
+    counts_tidy$gene <- factor(counts_tidy$gene)
+    counts_tidy$cell <- factor(counts_tidy$cell)
+
+
+    counts <- Matrix::sparseMatrix(
+        i = as.integer(counts_tidy$gene), 
+        j = as.integer(counts_tidy$cell), 
+        x = counts_tidy$N,
+        dims = c(length(levels(counts_tidy$gene)), length(levels(counts_tidy$cell)))
+    )
+    colnames(counts) <- levels(counts_tidy$cell)
+    rownames(counts) <- levels(counts_tidy$gene)
+    return(counts)
+}

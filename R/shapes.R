@@ -92,8 +92,8 @@ infer_polygon <- function(x, y, max_iter=20, verbose=FALSE) {
 
 #' @export 
 #' @param tx Data frame with columns x, y, and cell (cell=0 encodes background) 
-infer_polygons <- function(tx, parallel=FALSE) {
-    # cells <- tx[cell %in% cell_ids] %>% 
+infer_polygons <- function (tx, parallel = FALSE) 
+{
     if (parallel) {
         future::plan(future::multicore)
         iter_fxn <- function(...) {
@@ -102,22 +102,26 @@ infer_polygons <- function(tx, parallel=FALSE) {
     } else {
         iter_fxn <- purrr::imap
     }
-
-    cells <- tx %>% 
-        subset(cell != 0) %>% 
-        split(.$cell) %>% 
-        iter_fxn(function(tx_cell, idx) {
+    cells <- tx %>% subset(cell != 0) %>% split(.$cell) %>% 
+    iter_fxn(function(tx_cell, idx) {
+        shape <- tryCatch({
             if (nrow(tx_cell) < 5) {
-                return(sf::st_polygon())
+               sf::st_polygon() 
+            } else {
+                spatula::infer_polygon(tx_cell$x, tx_cell$y, max_iter = 10)
             }
-            res <- tryCatch({
-                infer_polygon(tx_cell$x, tx_cell$y, max_iter = 10)
-            }, error = function(e) {
-                sf::st_polygon()
-            }) 
-            return(res)
-        }) %>% 
-        sf::st_sfc() 
-    return(cells)
+        }, error = function(e) {
+            sf::st_polygon()
+        })
+        return(list(id = idx, shape = shape))
+    }) 
+    
+    ## This strategy is a bit clunky but preserves the original cell IDs for consistency with other data structures 
+    res <- st_sf(
+        id = unlist(map(cells, 'id')), 
+        shape = st_sfc(map(cells, function(x) x[['shape']])) ## map('shape') removes empty shapes as NULL
+    )
+    return(res)
 }
+
                      
