@@ -16,7 +16,8 @@ Imports:
     furrr, 
     future,
     ggplot2,
-    patchwork
+    patchwork,
+    data.table
 License: use_gpl3_license()
 Encoding: UTF-8
 LazyData: true

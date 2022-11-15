@@ -12,4 +12,5 @@
 #' @importFrom utils head
 #' @importFrom Rcpp evalCpp sourceCpp loadModule
 #' @importFrom rlang .data
+#' @importFrom data.table data.table
 NULL
