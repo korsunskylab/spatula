@@ -69,10 +69,10 @@ st_assign_pt.data.table <- function(
     
     ## (1) Before we start, limit to common area shared by transcripts and cells
     if (verbose) message('(1) Make bounding boxes')
-    bbox_tx <- st_rectangle(c(
+    bbox_tx <- st_rectangle(
         min(tx_dt[[colname_x]]), max(tx_dt[[colname_x]]), 
         min(tx_dt[[colname_y]]), max(tx_dt[[colname_y]])
-    )) 
+    )
     bbox_cells <- st_as_sfc(st_bbox(shapes_sf))
     bbox <- st_intersection(bbox_tx, bbox_cells)
     bbox <- st_buffer(bbox, 1e-8) ## needed? 

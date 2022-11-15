@@ -14,6 +14,18 @@ st_bbox_polygon <- function(pts) {
     return(res)
 }
 
+#' @export 
+st_rectangle <- function(xmin, xmax, ymin, ymax) {
+    res <- st_polygon(list(
+        rbind(
+            c(xmin, ymin),
+            c(xmax, ymin), 
+            c(xmax, ymax), 
+            c(xmin, ymax), 
+            c(xmin, ymin))
+    ))
+    return(res)    
+}
 
 #' @export 
 infer_polygon <- function(x, y, max_iter=20, verbose=FALSE) {
