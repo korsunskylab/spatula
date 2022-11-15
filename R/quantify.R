@@ -6,20 +6,24 @@ st_assign_pt <- function(pts, ...) {
     UseMethod('st_assign_pt')
 }
 
+#' @export 
 st_assign_pt.default <- function(pts, shapes_sf, shape_id_col) {
     stop(paste0('st_assign_pt not supported for pts of type ', class(pts)))
 }
 
+#' @export 
 st_assign_pt.data.frame <- function(pts, ...) {
     st_assign_pt(data.table(pts), ...)
 }
 
 
+#' @export 
 st_assign_pt.sf <- function(pts, shapes_sf, shape_id_col) {
     pts$cell <- st_assign_pt.sfc(st_geometry(pts), shapes_sf, shape_id_col)
     return(pts)
 }
 
+#' @export 
 st_assign_pt.sfc <- function (pts, shapes_sf, shape_id_col) {
     stopifnot(is(shapes_sf, "sf"))
     stopifnot(shape_id_col %in% colnames(shapes_sf))
@@ -55,6 +59,7 @@ st_assign_pt.sfc <- function (pts, shapes_sf, shape_id_col) {
     return(res)
 }
 
+#' @export 
 st_assign_pt.data.table <- function(
     tx_dt, shapes_sf, colname_x, colname_y, gridn=10, shape_id_col='cell', parallel=FALSE, verbose=FALSE
 ) {
