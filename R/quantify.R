@@ -1,157 +1,147 @@
 ## Functions for quantifying things about cells 
 ## Analogous to regionprops in skimage 
 
-## NOTES: assumes that cells and tx_coords are in the same coordinates 
 #' @export 
-assign_tx_to_cell <- function(tx_coords, cells, do_grid, boundary=NULL, verbose=FALSE) {
-    ## TODO: sanity check by intersecting tx and cells bounding boxes 
+st_assign_pt <- function(pts, ...) {
+    UseMethod('st_assign_pt')
+}
+
+st_assign_pt.default <- function(pts, shapes_sf, shape_id_col) {
+    stop(paste0('st_assign_pt not supported for pts of type ', class(pts)))
+}
+
+st_assign_pt.data.frame <- function(pts, ...) {
+    st_assign_pt(data.table(pts), ...)
+}
+
+
+st_assign_pt.sf <- function(pts, shapes_sf, shape_id_col) {
+    pts$cell <- st_assign_pt.sfc(st_geometry(pts), shapes_sf, shape_id_col)
+    return(pts)
+}
+
+st_assign_pt.sfc <- function (pts, shapes_sf, shape_id_col) {
+    stopifnot(is(shapes_sf, "sf"))
+    stopifnot(shape_id_col %in% colnames(shapes_sf))
+    if (nrow(shapes_sf) == 0) return(rep(0L, length(pts)))        
     
-    if (ncol(tx_coords) != 2) {
-        stop('tx_coords must have only 2 columns')
-    }    
-    if (do_grid == TRUE & !is.null(boundary)) {
-        stop('TODO: when boundary not defined, computing bounding box of cells')
-    }
-
-    # if (verbose) message('Transform microns to pixel coordinates')
-    ## To directly compare image coordinates to transcript coordinates, need to transform to same space 
-    ## Mosaic image transformation matrix provided by Vizgen 
-    # rot_mat <- fread('micron_to_mosaic_pixel_transform.csv')
-    # rot_mat <- fread('/mnt/efs/fs1/vizgen/vizgen_analyses/HuColonCa_FFPE_PH1_CellBoundary_QC_V8_LH_10-13-2021/region_0/micron_to_mosaic_pixel_transform.csv')
-    # rot_mat <- t(as.matrix(micron_to_pixel_mat))
-
-    ## NOTE: the rotation matrix assumes that third column is intercept (not z!)
-    
-    # tx_coords_transformed <- as.matrix(cbind(dplyr::select(tx, global_x, global_y), 1)) %*% rot_mat
-    # tx_coords_transformed <- as.matrix(cbind(tx[, .(global_x, global_y)], 1)) %*% rot_mat
-    # tx_coords_transformed <- data.frame(tx_coords_transformed[, 1:2])
-    # colnames(tx_coords_transformed) <- c('X1', 'X2')
-
-
-    ## Sanity check: these must be zero. Otherwise, transformation is wrong 
-    # stopifnot(all(tx_coords_transformed$X1 >= 0) & all(tx_coords_transformed$X2 >= 0))
-
-    tx <- data.table(
-        x = unlist(tx_coords[, 1]),
-        y = unlist(tx_coords[, 2]),
-        rowID = seq_len(nrow(tx_coords))
-    )
-    # tx <- tx %>% 
-        # cbind(data.frame(tx_coords_transformed)) %>% 
-        # dplyr::select(x=X1, y=X2, gene) %>% 
-        # tibble::rowid_to_column('rowID')
-
-    if (verbose) message('Filter cells to be within transcript bbox')
-    ## coords: xmin, xmax, ymin, ymax
-    bbox_tx = st_rectangle(c(min(tx$x), max(tx$x), min(tx$y), max(tx$y)))
-    cells_sf <- st_sf(
-        ID = seq_len(length(cells)), ## integer name
-        # ID = paste0('Cell', 1:length(cells)), ## character name 
-        cell = cells
-    )
-    cell_names <- cells_sf %>% st_crop(bbox_tx) %>% with(ID) 
-    cells_sf <- subset(cells_sf, ID %in% cell_names)
-    nrow(cells_sf)
-
-    if (verbose) message('Make grid')
-    if (do_grid) {
-        # boundary <- st_rectangle(st_bbox(cells)[c('xmin', 'xmax', 'ymin', 'ymax')]) ## bbox around cells
-        # boundary <- st_crop(st_sfc(boundary), bbox_tx)[[1]] ## intersect with transcripts 
-        # boundary <- st_union()
-        boundary <- st_union(
-            st_rectangle(st_bbox(cells_sf)[c('xmin', 'xmax', 'ymin', 'ymax')]),
-            bbox_tx    
+    suppressWarnings({
+        ## NOTE: use st_buffer to handle edge case of bbox with no area 
+        bbox <- st_intersection(
+            st_buffer(st_as_sfc(st_bbox(pts)), .1), 
+            st_buffer(st_as_sfc(st_bbox(shapes_sf)), .1)
         )
-        grid <- st_intersection(st_make_grid(boundary, n = 10), boundary)
-    } else {
-        ## if no grid, make grid one point 
-        ## NOTE: st_bbox was not working here, so here is a manual version: 
-        bbox_cells <- st_rectangle(c(
-            min(st_coordinates(cells_sf$cell)[, 'X']), 
-            max(st_coordinates(cells_sf$cell)[, 'X']), 
-            min(st_coordinates(cells_sf$cell)[, 'Y']), 
-            max(st_coordinates(cells_sf$cell)[, 'Y'])
-        ))
-        grid <- st_sfc(bbox_cells)
+        if (length(bbox) == 0) return(rep(0L, length(pts)))        
+        # bbox <- st_buffer(bbox, 1e-8) ## needed? 
+        
+        ## for efficiency, 
+        # pts <- st_crop(pts, bbox) ## bad idea! tx in must == tx out 
+        tx_in <- st_contains(bbox, pts)[[1]] ## transcripts inside bbox 
+        tx_out <- setdiff(seq_len(length(pts)), tx_in)
+
+        if (length(tx_in) == 0) return(rep(0L, length(pts)))        
+        
+        ## Crop is expensive, intersects much cheaper 
+        # shapes_sf <- st_crop(shapes_sf, bbox)
+        shapes_sf <- shapes_sf[st_intersects(bbox, shapes_sf)[[1]], ]        
+        
+        cell_ids <- st_intersects(pts[tx_in], st_geometry(shapes_sf)) %>% 
+            map(head, 1) %>% as.integer()
+        res <- rep(0L, length(pts))
+        res[tx_in] <- cell_ids
+        res[tx_in] <- shapes_sf[[shape_id_col]][res[tx_in]]
+        res[is.na(res)] <- 0L
+    })
+    return(res)
+}
+
+st_assign_pt.data.table <- function(
+    tx_dt, shapes_sf, colname_x, colname_y, gridn=10, shape_id_col='cell', parallel=FALSE, verbose=FALSE
+) {
+    stopifnot(is(tx_dt, 'data.table'))
+    stopifnot(colname_x %in% colnames(tx_dt) & colname_y %in% colnames(tx_dt))
+    tx_dt[, ORDER := 1:.N] ## to preserve order 
+    
+    ## (1) Before we start, limit to common area shared by transcripts and cells
+    if (verbose) message('(1) Make bounding boxes')
+    bbox_tx <- st_rectangle(c(
+        min(tx_dt[[colname_x]]), max(tx_dt[[colname_x]]), 
+        min(tx_dt[[colname_y]]), max(tx_dt[[colname_y]])
+    )) 
+    bbox_cells <- st_as_sfc(st_bbox(shapes_sf))
+    bbox <- st_intersection(bbox_tx, bbox_cells)
+    bbox <- st_buffer(bbox, 1e-8) ## needed? 
+    bbox <- st_as_sfc(st_bbox(bbox)) ## simplify bbox 
+    bbox_coords <- st_bbox(bbox)
+
+    if (st_is_empty(bbox)) {
+        tx_dt$cell <- 0L
+        return(tx_dt)
     }
 
+    # Do we really need to do this cropping? grid should do it for us below: 
+    # CAUTION: cropping tx directly is dangerous! We want to just append a cell column to the tx
+    # Here, we just append a column by reference 
+    if (verbose) message('(2.1) crop transcripts')
+    tx_dt[
+        , INBBOX := (
+            eval(parse(text = colname_x)) >= bbox_coords[['xmin']] & 
+            eval(parse(text = colname_x)) < bbox_coords[['xmax']] & 
+            eval(parse(text = colname_y)) >= bbox_coords[['ymin']] & 
+            eval(parse(text = colname_y)) < bbox_coords[['ymax']]         
+        )
+    ] 
+    suppressWarnings({
+        ## NOTE: cropping is expensive (b/c of intersection)
+        ##       intersect is much cheaper 
+        if (verbose) message('(2.2) crop cells')
+        shapes_sf <- shapes_sf[st_intersects(bbox, shapes_sf)[[1]], ] 
+        # shapes_sf <- st_crop(shapes_sf, bbox)
+        grid <- st_make_grid(bbox, n = gridn) 
+    })
+
+    ## (2) Split data 
+    if (verbose) message('(3.1) Split transcripts')
+    tx_list <- map(grid, function(g) {
+        bbox_g <- st_bbox(g)
+        tx_dt[INBBOX == TRUE][
+            eval(parse(text = colname_x)) >= bbox_g[['xmin']] & 
+            eval(parse(text = colname_x)) < bbox_g[['xmax']] & 
+            eval(parse(text = colname_y)) >= bbox_g[['ymin']] & 
+            eval(parse(text = colname_y)) < bbox_g[['ymax']]  
+        ]
+    })
     
-    if (verbose) message('Aggregate transcripts within grid sections')
-    ## TODO: move processing inside one grid to its own function to not repeat code 
-    if (do_grid) {
-        ## Need to remember cell names to deal with cells on the border 
-        ## NOTE: most of the time is spent subsetting cells with st_crop
-        ##       if we knew that cells were sorted spatially, we could compute bbox for those cells 
-        ## CAUTION: future_imap passes full copy of tx table to each thread, 
-        ##          so this is very memory intensive
-        ##          let's consider explicitely splitting tx first by grid location and then processing each piece of parallel 
-        parallel = FALSE
-        if (parallel) {
-            options(future.globals.maxSize=1e10)
-            plan(multicore)
-            iter_fxn <- function(...) {
-                furrr::future_imap(..., .options = furrr_options(seed = TRUE))
-            }
-        } else {
-            iter_fxn <- purrr::imap
-        }
-
-        tx_segmented <- iter_fxn(grid, function(.grid, i) {
-            message(i)
-            ## Subset data to this part of grid 
-            .tx <- tx[
-                between(x, st_bbox(.grid)[['xmin']], st_bbox(.grid)[['xmax']]) & 
-                between(y, st_bbox(.grid)[['ymin']], st_bbox(.grid)[['ymax']])
-            ]
-            if (nrow(.tx) == 0) return(.tx)
-
-            ## get IDs of cells to avoiding cropping cell at border 
-            suppressWarnings({
-                cell_names <- cells_sf %>% st_crop(.grid) %>% with(ID)        
-                if (length(cell_names) == 0) return(.tx)
-                .cells <- subset(cells_sf, ID %in% cell_names)$cell
-
-                ## intersect the points and polygons
-                tx_points <- .tx %>% 
-                    dplyr::select(x, y) %>% 
-                    as.matrix() %>% 
-                    st_multipoint() %>% 
-                    st_sfc() %>% 
-                    st_cast('POINT') 
-                overlap_res <- st_contains(.cells, tx_points, sparse = TRUE)
-            })
-
-            ## assign each transcript to a cell (if inside)
-            .tx$cell <- st_intersects(tx_points, .cells) %>% 
-                map(head, 1) %>% ## avoid double assignment
-                as.integer()
-
-            ## by convention, set background to cell 0 
-            .tx$cell[is.na(.tx$cell)] <- 0 
-            .tx$cell <- c('extracellular', cell_names)[.tx$cell + 1]        
-            return(.tx)
-        }) %>% 
-            bind_rows() %>% 
-            dplyr::arrange(rowID) ## return in same order as original tx     
-        return(tx_segmented)
+    grid_use <- which(map_int(tx_list, nrow) > 0)
+    grid <- grid[grid_use]
+    tx_list <- tx_list[grid_use]    
+    tx_list <- map(tx_list, st_as_sf, coords = c(colname_x, colname_y))        
+    stopifnot(sum(map_int(tx_list, nrow)) == sum(tx_dt$INBBOX)) 
+    if (verbose) message('(3.2) Split cells')    
+    tile_cells <- st_intersects(grid, shapes_sf)
+    shapes_list <- map(tile_cells, function(i) shapes_sf[i, ]) 
+    
+    ## (3) Do the assignment and put it back together 
+    if (verbose) message('(4) do assignment')
+    if (parallel == TRUE) {
+        plan(multicore)
+        res <- future_map2(tx_list, shapes_list, function(tx_g, shapes_g) {
+            st_assign_pt(tx_g, shapes_g, shape_id_col) %>% 
+                dplyr::select(ORDER, cell)
+        }, .options = furrr_options(seed = TRUE))
     } else {
-        tx_points <- tx %>% 
-            dplyr::select(x, y) %>% 
-            as.matrix() %>% 
-            st_multipoint() %>% 
-            st_sfc() %>% 
-            st_cast('POINT') 
-        overlap_res <- st_contains(cells_sf$cell, tx_points, sparse = TRUE)
-        tx$cell <- st_intersects(tx_points, cells_sf$cell) %>% 
-            map(head, 1) %>% ## avoid double assignment
-            as.integer()
-
-        ## by convention, set background to cell 0 
-        tx$cell[is.na(tx$cell)] <- 0 
-        # tx$cell <- c('extracellular', cell_names)[tx$cell + 1]        
-        return(tx)
-    }
-    
+        res <- map2(tx_list, shapes_list, function(tx_g, shapes_g) {
+            st_assign_pt(tx_g, shapes_g, shape_id_col) %>% 
+                dplyr::select(ORDER, cell)
+        }) 
+    } 
+    if (verbose) message('(5) put everything back together')
+    ## NOTE: because this is a data.table, all operations below are in memory! 
+    tx_dt[data.table(bind_rows(res)), on = 'ORDER', cell := i.cell]
+    setorder(tx_dt, ORDER)
+    tx_dt[, `:=`(ORDER = NULL, INBBOX = NULL)]
+    setnafill(tx_dt, fill = 0L, cols = 'cell')
+    return(tx_dt)
 }
 
 

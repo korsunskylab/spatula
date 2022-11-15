@@ -1,7 +1,17 @@
-## Useful function for creating a rectangle from corner points
+## Useful function for creating a bbox of type POLYGON
 #' @export 
-st_rectangle <- function(coords) {
-    st_polygon(list(rbind(c(coords[1], coords[3]), c(coords[2], coords[3]), c(coords[2], coords[4]), c(coords[1], coords[4]), c(coords[1], coords[3]))))    
+st_bbox_polygon <- function(pts) {
+    bbox <- st_bbox(pts)
+    coords <- bbox[c('xmin', 'xmax', 'ymin', 'ymax')]
+    res <- st_polygon(list(
+        rbind(
+            c(coords[1], coords[3]),
+            c(coords[2], coords[3]), 
+            c(coords[2], coords[4]), 
+            c(coords[1], coords[4]), 
+            c(coords[1], coords[3]))
+    ))
+    return(res)
 }
 
 
