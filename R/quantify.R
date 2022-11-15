@@ -146,7 +146,6 @@ st_assign_pt.data.table <- function(
     setorder(tx_dt, ORDER)
     tx_dt[, `:=`(ORDER = NULL, INBBOX = NULL)]
     setnafill(tx_dt, fill = 0L, cols = 'cell')
-    return(tx_dt)
 }
 
 
