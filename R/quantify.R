@@ -269,6 +269,7 @@ st_aggregate_pts_shapes <- function(
     } else if (return_type == 'mat') {
         ## (5) Collapse into matrix
         if (verbose) message('(6) collapse into matrix')
+        return(tx_to_counts2(res, 'pt_names', 'shape_id'))
     } else {
         stop('invalid return_type')
     }
