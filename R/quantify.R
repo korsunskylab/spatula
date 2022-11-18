@@ -170,3 +170,123 @@ tx_to_counts <- function(genes, cells, remove_bg = TRUE) {
     return(counts)
 }
 
+#' @export 
+st_aggregate_pts_shapes <- function(
+    tx_dt, shapes_sf, colname_x, colname_y, colname_ptname, colname_shapename, gridn, verbose=FALSE,
+    return_type=c('mat', 'list')[1]
+) {
+    ## Note to self: this is huge! Chop it up! 
+    ## Maybe also a simpler function to just to the whole thing without tiling? 
+    
+    ## (1) crop to shared area 
+    ##       don't care about removing points here 
+    ##       
+    bbox_tx <- st_rectangle(
+            min(tx_dt[[colname_x]]), max(tx_dt[[colname_x]]), 
+            min(tx_dt[[colname_y]]), max(tx_dt[[colname_y]])
+        )
+    bbox_cells <- st_as_sfc(st_bbox(shapes_sf))
+    bbox <- st_intersection(bbox_tx, bbox_cells)
+    bbox <- st_buffer(bbox, 1e-8) ## needed? 
+    bbox <- st_as_sfc(st_bbox(bbox)) ## simplify bbox 
+    bbox_coords <- st_bbox(bbox)
+
+    if (st_is_empty(bbox)) {
+        ## do something? 
+        stop('No overlap between points and shapes')
+    }
+
+    tx_dt <- tx_dt[
+        eval(parse(text = colname_x)) >= bbox_coords[['xmin']] & 
+        eval(parse(text = colname_x)) < bbox_coords[['xmax']] & 
+        eval(parse(text = colname_y)) >= bbox_coords[['ymin']] & 
+        eval(parse(text = colname_y)) < bbox_coords[['ymax']], 
+    ] 
+
+    suppressWarnings({
+        shapes_sf <- shapes_sf[st_intersects(bbox, shapes_sf)[[1]], ] 
+        grid <- st_make_grid(bbox, n = gridn) 
+    })
+
+    ## (2) Split data 
+    if (verbose) message('(3.1) Split transcripts')
+    tx_list <- map(grid, function(g) {
+        bbox_g <- st_bbox(g)
+        tx_dt[
+            eval(parse(text = colname_x)) >= bbox_g[['xmin']] & 
+            eval(parse(text = colname_x)) < bbox_g[['xmax']] & 
+            eval(parse(text = colname_y)) >= bbox_g[['ymin']] & 
+            eval(parse(text = colname_y)) < bbox_g[['ymax']]  
+        ]
+    })
+    grid_use <- which(map_int(tx_list, nrow) > 0)
+    grid <- grid[grid_use]
+    tx_list <- tx_list[grid_use]    
+    tx_list <- map(tx_list, st_as_sf, coords = c(colname_x, colname_y))        
+    if (verbose) message('(3.2) Split cells')    
+    tile_cells <- st_intersects(grid, shapes_sf)
+    shapes_list <- map(tile_cells, function(i) shapes_sf[i, ]) 
+
+
+    ## (3) do point counting for each shape in each tile 
+    if (verbose) message('(4) count transcripts')
+    res_list <- map2(tx_list, shapes_list, function(.tx_dt, .shapes_sf) {
+        pt_names <- .tx_dt[[colname_ptname]]
+        overlap_res <- st_contains(
+            st_geometry(.shapes_sf), ## shapes sfc 
+            st_geometry(st_as_sf(.tx_dt, coords = c(colname_x, colname_y))) ## points sfc
+        )
+        overlap_res <- map(overlap_res, function(i) pt_names[i]) ## faster in C++? 
+        data.table(
+            shape_id = as.character(.shapes_sf[[colname_shapename]]), ## when integer, code below fails 
+            pt_names = overlap_res,
+            key = 'shape_id'
+        )
+    })
+
+    ## (4) combine over tiles, taking into account shapes that appear in two tiles 
+    if (verbose) message('(5) combine tiles')
+    foo <- function(x, y) {
+        cells_common <- intersect(x$shape_id, y$shape_id)
+        if (length(cells_common) == 0) {
+            res <- bind_rows(x, y)
+        } else {
+            res <- x[cells_common][
+                y[cells_common], on = 'shape_id' ## join cells
+            ][
+                , .(pt_names = list(c(pt_names[[1]], i.pt_names[[1]]))), by = shape_id ## merge pts 
+            ][] %>% 
+                rbind(x[setdiff(x$shape_id, cells_common)]) %>% 
+                rbind(y[setdiff(y$shape_id, cells_common)])
+       }
+        data.table::setkey(res, 'shape_id')
+        return(res)    
+    }
+    res <- Reduce(foo, res_list)
+
+    if (return_type == 'list') {
+        return(res)
+    } else if (return_type == 'mat') {
+        ## (5) Collapse into matrix
+        if (verbose) message('(6) collapse into matrix')
+    } else {
+        stop('invalid return_type')
+    }
+}
+                     
+
+#' @export 
+## this version uses ipx format for dgCMatrix instead of ijx 
+tx_to_counts2 <- function(cell_lists, colname_ptname, colname_shapename) {
+    pt_names <- unlist(cell_lists[[colname_ptname]])
+    pt_names <- factor(pt_names)
+    shape_names <- cell_lists[[colname_shapename]]
+    counts <- Matrix::sparseMatrix(
+        i = as.integer(pt_names), ## genes 
+        p = cumsum(c(0, map_int(cell_lists[[colname_ptname]], length))), ## ntx per cell 
+        x = rep(1, length(pt_names)),
+        dims = c(nlevels(pt_names), length(shape_names)),
+        dimnames = list(levels(pt_names), shape_names)
+    )    
+    return(counts)
+}

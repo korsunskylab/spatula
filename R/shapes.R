@@ -114,36 +114,75 @@ infer_polygon <- function(x, y, max_iter=20, verbose=FALSE) {
 
 #' @export 
 #' @param tx Data frame with columns x, y, and cell (cell=0 encodes background) 
-infer_polygons <- function (tx, parallel = FALSE) 
-{
+infer_polygons <- function (tx, colname_x, colname_y, min_tx_per_cell = 5, parallel = FALSE) {
     if (parallel) {
         future::plan(future::multicore)
         iter_fxn <- function(...) {
             furrr::future_imap(..., .options = furrr::furrr_options(seed = TRUE))
         }
-    } else {
+    }
+    else {
         iter_fxn <- purrr::imap
     }
-    cells <- tx %>% subset(cell != 0) %>% split(.$cell) %>% 
-    iter_fxn(function(tx_cell, idx) {
+    cells <- tx %>% subset(cell != 0) %>% 
+        split(.$cell) %>% 
+        iter_fxn(function(tx_cell, idx) {
         shape <- tryCatch({
-            if (nrow(tx_cell) < 5) {
-               sf::st_polygon() 
-            } else {
-                spatula::infer_polygon(tx_cell$x, tx_cell$y, max_iter = 10)
+            if (nrow(tx_cell) < min_tx_per_cell) {
+                sf::st_polygon()
+            }
+            else {
+                spatula::infer_polygon(tx_cell[[colname_x]], tx_cell[[colname_y]], 
+                  max_iter = 10)
             }
         }, error = function(e) {
             sf::st_polygon()
         })
         return(list(id = idx, shape = shape))
-    }) 
-    
-    ## This strategy is a bit clunky but preserves the original cell IDs for consistency with other data structures 
-    res <- st_sf(
-        id = unlist(map(cells, 'id')), 
-        shape = st_sfc(map(cells, function(x) x[['shape']])) ## map('shape') removes empty shapes as NULL
-    )
+    })
+    res <- st_sf(id = unlist(map(cells, "id")), shape = st_sfc(map(cells, 
+        function(x) x[["shape"]])))
     return(res)
 }
+                                                                   
+#' @export 
+st_make_neighborhoods <- function(shapes, dist) {
+    stopifnot(is(shapes, 'sfc'))
+    neighborhoods <- st_buffer(shapes, dist = dist) 
+    neighborhoods <- map2(neighborhoods, shapes, function(x, y) {
+        tryCatch({
+            st_difference(x, y)
+        }, error = function(e) {
+            st_difference(st_make_valid(x), st_make_valid(y)) ## try to save this polygon 
+        }, finally = function(e) {
+            st_polygon() ## return empty (in case of self intersections, which are pretty rare)                
+        })
+    }) %>% 
+        st_sfc()
+    return(neighborhoods)
+}
 
+#' @export 
+st_make_neighborhoods_multi <- function(shapes, dist, nsplit) {
+    stopifnot(is(shapes, 'sfc'))
+    if (nsplit == 1) 
+        return(st_make_neighborhoods(shapes, dist))
+    
+    plan(multicore)
+    split_id <- rep(1:nsplit, each = round(length(shapes) / nsplit) + 1)[1:length(shapes)]
+    neighborhoods <- split(shapes, split_id) %>% 
+        future_imap(function(shapes_tile, idx) {
+            st_sf(
+                shape = st_make_neighborhoods(shapes_tile, dist), 
+                id = idx
+            )  
+        }, .options = furrr_options(seed = 42L)) %>% 
+        bind_rows() %>% 
+        arrange(id) %>% 
+        with(shape) %>% 
+        st_sfc()
+    return(neighborhoods)
+}
+
+                                                                   
                      
