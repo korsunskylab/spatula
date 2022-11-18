@@ -263,6 +263,7 @@ st_aggregate_pts_shapes <- function(
         return(res)    
     }
     res <- Reduce(foo, res_list)
+    res <- res[match(shapes_sf[[colname_shapename]], res$shape_id), ]
 
     if (return_type == 'list') {
         return(res)
