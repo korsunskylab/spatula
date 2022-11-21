@@ -5,7 +5,7 @@ Authors@R:
     person("Ilya", "Korsunsky", , "ilya.korsunsky@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0003-4848-3948"))
 Description: Currently, miscellaneous collection of useful functions for handling spatial genomics data.
-Depends: Rcpp, RcppArmadillo
+Depends: Rcpp, RcppArmadillo, R(>= 3.5.0)
 LinkingTo: Rcpp, RcppArmadillo
 Imports: 
     sf,
