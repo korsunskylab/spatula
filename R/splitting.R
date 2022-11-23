@@ -17,7 +17,7 @@ split_grid <- function(grid_point) {
             tx = dplyr::filter(grid_point$tx, between(x, bbox_test[1], bbox_test[2]) & between(y, bbox_test[3], bbox_test[4])), 
             # tx = grid_point$tx[between(x, bbox_test[1], bbox_test[2]) & between(y, bbox_test[3], bbox_test[4])], 
             bbox = bbox_test,
-            bbox_geom = st_rectangle(bbox_test)
+            bbox_geom = st_rectangle(bbox_test[1], bbox_test[2], bbox_test[3], bbox_test[4])
         )
         res$n <- nrow(res$tx)
         return(res)
@@ -35,7 +35,7 @@ split_tx <- function(tx, max_tx, max_voxels) {
         )
     )
     grid[[1]]$n <- nrow(grid[[1]]$tx)
-    grid[[1]]$bbox_geom <- st_rectangle(grid[[1]]$bbox)
+    grid[[1]]$bbox_geom <- st_rectangle(grid[[1]]$bbox[1], grid[[1]]$bbox[2], grid[[1]]$bbox[3], grid[[1]]$bbox[4])
 
     ## Keep splitting grid points until each has at most max_tx transcripts
     .i <- 0
