@@ -215,18 +215,26 @@ baysor.run <- function(
     message('WARNING: for now, tx needs to have columns: x, y, gene, cell')
     stopifnot(colnames(tx) == c('x', 'y', 'gene', 'cell'))
     stopifnot(file.exists(fname_baysor_config))
-    if (!'docker' %in% strsplit(system('groups', intern = TRUE), ' ')[[1]]) {
-        stop('You do not belong to the docker group. Please follow the instructions here to run docker without root privileges: https://docs.docker.com/engine/install/linux-postinstall/')
+    if (baysor_mode == 'docker') {
+        if (!'docker' %in% strsplit(system('groups', intern = TRUE), ' ')[[1]]) {
+            stop('You do not belong to the docker group. Please follow the instructions here to run docker without root privileges: https://docs.docker.com/engine/install/linux-postinstall/')
+        }
     }
-
+    
     ntiles <- baysor.split_tx_files(output_dir, opts$max_tx_per_grid) 
-    baysor.run_baysor_tiles(ntiles, output_dir, fname_baysor_config, opts$max_parallel_jobs) 
+    baysor.prepare_cmds(ntiles, output_dir, fname_baysor_config, opts$max_parallel_jobs)
+    if (baysor_mode == 'docker') {
+        baysor.run_baysor_tiles_docker(ntiles, output_dir, fname_baysor_config)    
+    } else if (baysor_mode == 'binary') {
+        stop('binary mode not implemented yet. Please use docker mode.')
+        # baysor.run_baysor_tiles_binary(ntiles, output_dir, ..., fname_baysor_config) 
+    } else {
+        stop('invalid baysor_mode')
+    }
+    
     tx <- baysor.collect_tx(output_dir, testing=FALSE, mintx=opts$min_tx_per_cell) 
     counts <- tx_to_counts(tx$gene, tx$cell, remove_bg = TRUE)
     cells <- baysor.collect_cells(tx, opts$min_tx_per_cell)
     environment(baysor.finish) <- environment() 
     baysor.finish() 
-    
 }
-
-
