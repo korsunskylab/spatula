@@ -152,7 +152,7 @@ baysor.prepare_cmds <- function(ntiles, output_dir, fname_baysor_config, max_par
 }
 
 #' @export 
-baysor.run_baysor_tiles_docker <- function(ntiles, output_dir, fname_baysor_config, max_parallel_jobs) {
+baysor.run_baysor_tiles_docker <- function(ntiles, output_dir, fname_baysor_config) {
     output_dir <- normalizePath(output_dir)
     file.copy(
         from = fname_baysor_config, 
@@ -171,6 +171,11 @@ baysor.run_baysor_tiles_docker <- function(ntiles, output_dir, fname_baysor_conf
     system('docker stop MY_INSTANCE_NAME', wait = TRUE)
     system('docker rm MY_INSTANCE_NAME', wait = TRUE)    
 }
+
+# baysor.run_baysor_tiles_binary <- function(ntiles, output_dir, fname_baysor_config) {
+
+# }
+
 
 #' @export 
 baysor.finish <- function() {
@@ -198,7 +203,7 @@ baysor.run <- function(
     fname_baysor_config, 
     output_dir, 
     opts = list(
-        baysor_mode = c('docker', 'binary'), ## baysor can be run through docker container or natively installed binary 
+        baysor_mode = c('docker', 'binary')[1], ## baysor can be run through docker container or natively installed binary 
         max_tx_per_grid = 2e7, ## maximum number of transcripts per tile 
         compute_shapes = TRUE, 
         max_parallel_jobs = 10, ## maximum number of concurrent Baysor jobs running 
