@@ -251,13 +251,13 @@ st_aggregate_pts_shapes <- function(
         if (length(cells_common) == 0) {
             res <- bind_rows(x, y)
         } else {
-            res <- x[cells_common][
-                y[cells_common], on = 'shape_id' ## join cells
+            res <- x[shape_id %in% cells_common, ][
+                y[shape_id %in% cells_common, ], on = 'shape_id' ## join cells
             ][
                 , .(pt_names = list(c(pt_names[[1]], i.pt_names[[1]]))), by = shape_id ## merge pts 
             ][] %>% 
-                rbind(x[setdiff(x$shape_id, cells_common)]) %>% 
-                rbind(y[setdiff(y$shape_id, cells_common)])
+                rbind(x[!shape_id %in% cells_common, ]) %>% 
+                rbind(y[!shape_id %in% cells_common, ]) 
        }
         data.table::setkey(res, 'shape_id')
         return(res)    
