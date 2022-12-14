@@ -246,21 +246,29 @@ st_aggregate_pts_shapes <- function(
 
     ## (4) combine over tiles, taking into account shapes that appear in two tiles 
     if (verbose) message('(5) combine tiles')
-    foo <- function(x, y) {
+    foo <- function(x, y) {    
         cells_common <- intersect(x$shape_id, y$shape_id)
         if (length(cells_common) == 0) {
             res <- bind_rows(x, y)
-        } else {
-            res <- x[shape_id %in% cells_common, ][
-                y[shape_id %in% cells_common, ], on = 'shape_id' ## join cells
+        }
+        else {
+            res <- x[
+                x$shape_id %in% cells_common, 
             ][
-                , .(pt_names = list(c(pt_names[[1]], i.pt_names[[1]]))), by = shape_id ## merge pts 
+                y[y$shape_id %in% cells_common, ], 
+                on = "shape_id"
+            ][
+                    # , .(pt_names = list(c(unlist(pt_names), unlist(i.pt_names)))), by = shape_id
+                    , .(pt_names = list(c(pt_names[[1]], i.pt_names[[1]]))), by = shape_id
             ][] %>% 
-                rbind(x[!shape_id %in% cells_common, ]) %>% 
-                rbind(y[!shape_id %in% cells_common, ]) 
-       }
-        data.table::setkey(res, 'shape_id')
-        return(res)    
+                rbind(x[!x$shape_id %in% cells_common, ]) %>% 
+                rbind(y[!y$shape_id %in% cells_common, ])
+        }
+
+        ## This causes some weirdness above
+        ## Why? I thought that setting indices was the key to speed in data.table
+        # data.table::setkey(res, "shape_id")
+        return(res)
     }
     res <- Reduce(foo, res_list)
     res <- res[match(shapes_sf[[colname_shapename]], res$shape_id), ]
