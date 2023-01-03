@@ -143,6 +143,7 @@ st_assign_pt.data.table <- function(
     if (verbose) message('(5) put everything back together')
     ## NOTE: because this is a data.table, all operations below are in memory! 
     tx_dt[data.table(bind_rows(res)), on = 'ORDER', cell := i.cell]
+    tx_dt[, ORDER := as.integer(ORDER)] ## just in case there was an implicit cast to chr
     setorder(tx_dt, ORDER)
     tx_dt[, `:=`(ORDER = NULL, INBBOX = NULL)]
     setnafill(tx_dt, fill = 0L, cols = 'cell')
