@@ -174,7 +174,7 @@ st_make_neighborhoods_multi <- function(shapes, dist, nsplit) {
         future_imap(function(shapes_tile, idx) {
             st_sf(
                 shape = st_make_neighborhoods(shapes_tile, dist), 
-                id = idx
+                id = as.integer(idx) ## this is to maintain the original order of the shapes 
             )  
         }, .options = furrr_options(seed = 42L)) %>% 
         bind_rows() %>% 
